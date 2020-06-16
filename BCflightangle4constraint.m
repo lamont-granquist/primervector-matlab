@@ -11,9 +11,9 @@ function z = BCflightangle4constraint(xf, rT, vT, incT, gammaT)
   pvf = xf(indexes.pv);
   prf = xf(indexes.pr);
 
-  n_hat = [ 0, 0, 1 ];
-  rn = cross(rf, n_hat);
-  vn = cross(vf, n_hat);
+  n = [ 0, 0, 1 ];
+  rn = cross(rf, n);
+  vn = cross(vf, n);
 
   hf = cross(rf, vf);
 
@@ -21,7 +21,7 @@ function z = BCflightangle4constraint(xf, rT, vT, incT, gammaT)
     % 4 constraints
     ( norm(rf)^2 - rT_bar^2 ) / 2
     ( norm(vf)^2 - vT_bar^2 ) / 2
-    dot(n_hat, hf) - norm(hf) * cos(incT)
+    dot(n, hf) - norm(hf) * cos(incT)
     dot(rf, vf) - norm(rf) * norm(vf) * sin(gammaT)
     % 2 transversality conditions
     rT_bar^2 * ( dot(vf, prf) - vT_bar * sin(gammaT) / rT_bar * dot(rf, prf) ) - vT_bar^2 * ( dot(rf, pvf) - rT_bar * sin(gammaT) / vT_bar * dot(vf, pvf) )

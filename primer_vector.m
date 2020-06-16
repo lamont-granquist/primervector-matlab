@@ -1,4 +1,4 @@
-function [ rf vf xf indexes r_scale v_scale ] = primer_vector(phases, body, bcfun, r0, v0, pv0, pr0)
+function [ rf vf xf indexes r_scale v_scale t_scale ] = primer_vector(phases, body, bcfun, r0, v0, pv0, pr0)
   global indexes r_scale v_scale r0_bar v0_bar g_bar Nphases
 
   %
@@ -11,13 +11,14 @@ function [ rf vf xf indexes r_scale v_scale ] = primer_vector(phases, body, bcfu
   indexes.v = 4:6;
   indexes.pv = 7:9;
   indexes.pr = 10:12;
+  indexes.p = 7:12;
   indexes.m = 13;
   indexes.integrated = 1:13;
   indexes.bt = 14;
   indexes.total = 14;
 
   %
-  % PROBLEM SCALING
+  % PROBLEM SCALING / SANITY
   %
 
   g_bar = body.mu / norm(r0)^2;
@@ -29,6 +30,12 @@ function [ rf vf xf indexes r_scale v_scale ] = primer_vector(phases, body, bcfu
   v0_bar = v0 / v_scale;
 
   for p = 1:Nphases;
+    if ~isfield(phases(p), 'infinte') || isempty(phases(p).infinite)
+      phases(p).infinite = false
+    end
+    if ~isfield(phases(p), 'bt_free') || isempty(phases(p).bt_free)
+      phases(p).bt_free = false
+    end
     phases(p).ve     = phases(p).isp * g0;
     phases(p).a0     = phases(p).thrust / phases(p).m0;
     phases(p).tau    = phases(p).ve / phases(p).a0;
@@ -51,7 +58,7 @@ function [ rf vf xf indexes r_scale v_scale ] = primer_vector(phases, body, bcfu
   %
 
   x0 = singleShooting(x0, phases);
-  options = optimset('Algorithm','levenberg-marquardt','TolX',1e-15,'TolFun',1e-15,'MaxFunEvals',20000,'MaxIter',3000);
+  options = optimset('Algorithm','levenberg-marquardt','TolX',1e-15,'TolFun',1e-15,'MaxFunEvals',2000,'MaxIter',300);
   lb(1:length(x0)) = -inf;
   ub(1:length(x0)) = inf;
   [x, z, exitflag, output, jacobian] = lsqnonlin(@(x) residualFunction(x, phases, bcfun), x0, lb, ub, options);
@@ -75,7 +82,9 @@ function z = residualFunction(x0, phases, bcfun)
   for p = 1:Nphases
     i_offset = (p-1)*indexes.total;
     x0(indexes.m + i_offset) = phases(p).m0;  % FIXME: mass continuity (upper stage coast)
-    x0(indexes.bt + i_offset) = phases(p).bt_bar;  % FIXME: variable burntime
+    if ~phases(p).bt_free
+      x0(indexes.bt + i_offset) = phases(p).bt_bar;
+    end
   end
 
   xf = multipleShooting(x0, phases);
@@ -96,15 +105,12 @@ function z = residualFunction(x0, phases, bcfun)
     ];
 
   % burntime of the bottom stage
-  z = [
-    z
-    x0(indexes.bt)' - phases(1).bt_bar
-    ];
+  z = vertcat(z, burntimeResidual(phases, 1, x0, xf));
 
   % initial conditions and burntime of the pth+1 phase (continuity, mass jettison and upper stage burntime)
-  for p = 1:Nphases-1
-    i_offset = (p-1)*indexes.total;
-    i_offset2 = p*indexes.total;
+  for p = 2:Nphases
+    i_offset = (p-2)*indexes.total;
+    i_offset2 = (p-1)*indexes.total;
 
     % continuity
     z = [
@@ -114,16 +120,28 @@ function z = residualFunction(x0, phases, bcfun)
       xf(indexes.pr + i_offset)' - x0(indexes.pr + i_offset2)'
       xf(indexes.pv + i_offset)' - x0(indexes.pv + i_offset2)'
       ];
-    % mass jettison
+    % mass jettison or continuity
     z = [
       z
-      x0(indexes.m + i_offset2)' - phases(p+1).m0
+      x0(indexes.m + i_offset2)' - phases(p).m0
       ];
-    % burntime
-    z = [
-      z
-      x0(indexes.bt + i_offset2)' - phases(p+1).bt_bar
-      ];
+    % burntime of p+1th phase
+    z = vertcat(z, burntimeResidual(phases, p, x0, xf));
+  end
+end
+
+function z = burntimeResidual(phases, p, x0, xf)
+  global Nphases indexes
+  i_offset = (p-1)*indexes.total;
+
+  if phases(p).bt_free
+    if p == Nphases
+      z = norm(xf(indexes.p + i_offset)) - 1;
+    else
+      z = 1/0; % FIXME
+    end
+  else
+    z = x0(indexes.bt + i_offset)' - phases(p).bt_bar;
   end
 end
 
@@ -163,6 +181,7 @@ function xf = multipleShooting(x0, phases)
     ode45options = odeset('RelTol',1e-8,'AbsTol',1e-10);
     [ts, xs] = ode45(@(t,x) EOM(t, x, p, phases), [0 bt], x0(index_range), ode45options);
     xf(index_range) = xs(end,:);
+    xf(indexes.bt + i_offset) = bt;
   end
 end
 
@@ -173,8 +192,9 @@ end
 function dX_dt = EOM(t, X, p, phases)
   global indexes g_bar
 
-  thrust = phases(p).thrust;
-  c      = phases(p).c;
+  thrust   = phases(p).thrust;
+  c        = phases(p).c;
+  infinite = phases(p).infinite;
 
   r  = X(indexes.r);
   v  = X(indexes.v);
@@ -185,6 +205,8 @@ function dX_dt = EOM(t, X, p, phases)
   u = pv/norm(pv);
   T = thrust / (m * g_bar);
 
+  if infinite; T = T * 2; end
+
   r2 = dot(r,r);
   r3 = r2^(3/2);
   r5 = r2 * r3;
@@ -193,7 +215,12 @@ function dX_dt = EOM(t, X, p, phases)
   vdot  = - r / r3 + T * u;
   pvdot = - pr;
   prdot = pv / r3 - 3 / r5 * dot(r, pv) * r;
-  mdot  = - thrust / c;
+
+  if ( infinite ) || ( thrust == 0 )
+    mdot = 0;
+  else
+    mdot  = - thrust / c;
+  end
 
   dX_dt = [ rdot' vdot' pvdot' prdot' mdot ]';
 end

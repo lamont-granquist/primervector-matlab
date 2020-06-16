@@ -1,4 +1,4 @@
-function [ rf vf xf indexes r_scale v_scale ] = launch(stages, body, bcfun, lat, lng, incT)
+function [ rf vf xf indexes r_scale v_scale t_scale ] = launch(stages, body, bcfun, lat, lng, incT)
   % setup launch site along x-axis rotated up to latitude
   r0 = body.r * [ cos(lat)*cos(lng) cos(lat)*sin(lng) sin(lat) ]';
   v0 = cross(body.w, r0);
@@ -19,6 +19,22 @@ function [ rf vf xf indexes r_scale v_scale ] = launch(stages, body, bcfun, lat,
 
   phases = stages;
 
-  [rf vf] = primer_vector(phases, body, bcfun, r0, v0, pv0, pr0);
+  stages(2)
+
+  upper_burntime = -1;
+  while upper_burntime < 0
+    phases(length(phases)).infinite = true;
+    phases(length(phases)).bt_free = true;
+
+    [ rf vf xf indexes r_scale v_scale t_scale ] = primer_vector(phases, body, bcfun, r0, v0, pv0, pr0);
+
+    upper_burntime = xf(indexes.bt + length(phases)-1*indexes.total);
+
+    if upper_burntime < 0
+      phases = phases(1:length(phases)-1);
+    end
+  end
+
+  phases(length(phases)).infinite = false;
 end
 

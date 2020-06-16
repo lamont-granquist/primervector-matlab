@@ -1,5 +1,6 @@
-close all; clear all; clc;
+close all; clear classes; clear all; clc;
 format longG;
+format compact;
 
 %
 % BODY CONSTANTS
@@ -21,10 +22,10 @@ stages(1).isp    = 296;               % sec
 stages(1).bt     = 156;               % sec
 
 stages(2).m0     = 28400 + payload;   % kg
-stages(2).thrust = 443.7 * 1000;        % N
+stages(2).thrust = 443.7 * 1000;      % N
 stages(2).isp    = 315;               % sec
-%stages(2).bt     = 180;               % sec
-stages(2).bt = 166.753090665355;
+stages(2).bt     = 180;               % sec
+stages(2).bt_free = true;
 
 %
 % BOUNDARY CONDITIONS
@@ -32,16 +33,17 @@ stages(2).bt = 166.753090665355;
 
 incT = deg2rad(28.608);
 PeA = 185e+3;
-ApA = 185e+3;
+ApA = 186e+3;
 gammaT = deg2rad(0);
 
-bcfun = @(xf) BCflightangle4constraintPeAApA(xf, body, PeA, ApA, incT, gammaT);
+%bcfun = @(xf) BCflightangle4constraintPeAApA(xf, body, PeA, ApA, incT, gammaT);
+bcfun = @(xf) BCkeplerian3constraintPeAApA(xf, body, PeA, ApA, incT);
 
 % launchsite latitude
 lat = deg2rad(28.608);
 lng = 0;
 
-[rf vf] = launch(stages, body, bcfun, lat, lng, incT)
+[ rf vf xf indexes r_scale v_scale t_scale ] = launch(stages, body, bcfun, lat, lng, incT);
 
 %
 % SOME OUTPUT
