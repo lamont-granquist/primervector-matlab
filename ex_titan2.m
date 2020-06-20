@@ -33,11 +33,14 @@ stages(2).bt_free = true;
 
 incT = deg2rad(28.608);
 PeA = 185e+3;
-ApA = 186e+3;
-gammaT = deg2rad(0);
+ApA = 200e+3;
+AttR = 185e+3;
+LANT = deg2rad(270);
+ArgPT = deg2rad(135);
 
-%bcfun = @(xf) BCflightangle4constraintPeAApA(xf, body, PeA, ApA, incT, gammaT);
-bcfun = @(xf) BCkeplerian3constraintPeAApA(xf, body, PeA, ApA, incT);
+%bcfun = @(xf) BCflightangle4constraintPeAApA(xf, body, PeA, ApA, incT, AttR);
+%bcfun = @(xf) BCkeplerian3constraintPeAApA(xf, body, PeA, ApA, incT);
+bcfun = @(xf) BCkeplerian5constraintPeAApA(xf, body, PeA, ApA, incT, LANT, ArgPT);
 
 % launchsite latitude
 lat = deg2rad(28.608);
@@ -57,6 +60,9 @@ orbit.PeR = (1 - eMag) * a;
 orbit.ApR = (1 + eMag) * a;
 orbit.PeA = orbit.PeR - body.r;
 orbit.ApA = orbit.ApR - body.r;
+orbit.rf = norm(rf);
+orbit.vf = norm(vf);
+orbit.gamma = acos( min(max(norm(cross(rf,vf))/(norm(rf)*norm(vf)), -1), 1) );
 orbit.inclination = rad2deg(i);
 orbit.LAN = rad2deg(O);
 orbit.argument_of_periapsis = rad2deg(o);
