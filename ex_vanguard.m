@@ -14,33 +14,43 @@ body.w  = 7.2921159e-5 * [0,0,1]'; % rad/s; sidereal angular
 % VEHICLE
 %
 
-payload = 3580;   % kg
+% Vanguard 3
+payload = 23.7;   % kg
 
-stages(1).m0     = 149600 + payload;  % kg
-stages(1).thrust = 2 * 1097.2 * 1000; % N
-stages(1).isp    = 296;               % sec
-stages(1).bt     = 156;               % sec
+% SLV-7
+stages(1).m0       = 8090 + 1990 + 194 + payload; % kg
+stages(1).thrust   = 125 * 1000;                  % N
+stages(1).isp      = 248;                         % sec
+stages(1).bt       = 144;                         % sec
 
-stages(2).m0     = 28400 + payload;   % kg
-stages(2).thrust = 443.7 * 1000;      % N
-stages(2).isp    = 315;               % sec
-stages(2).bt     = 180;               % sec
-stages(2).bt_free = true;
+% AJ10-37
+stages(2).m0       = 1990 + 194 + payload; % kg
+stages(2).thrust   = 32.6 * 1000;          % N
+stages(2).isp      = 261;                  % sec
+stages(2).bt       = 120;                  % sec
+stages(2).bt_free  = true;
+
+% X248-A2
+stages(3).m0       = 194 + payload; % kg
+stages(3).thrust   = 11.6 * 1000;   % N
+stages(3).isp      = 230;           % sec
+stages(3).bt       = 31;            % sed
+stages(3).unguided = true;
 
 %
 % BOUNDARY CONDITIONS
 %
 
-incT = deg2rad(28.608);
-PeA = 185e+3;
-ApA = 200e+3;
-AttR = 185e+3;
-LANT = deg2rad(270);
-ArgPT = deg2rad(135);
+incT = deg2rad(33.4);
+PeA = 512e+3;
+ApA = 3743e+3;
+%AttR = 185e+3;
+%LANT = deg2rad(270);
+%ArgPT = deg2rad(135);
 
 %bcfun = @(xf) BCflightangle4constraintPeAApA(xf, body, PeA, ApA, incT, AttR);
-%bcfun = @(xf) BCkeplerian3constraintPeAApA(xf, body, PeA, ApA, incT);
-bcfun = @(xf) BCkeplerian5constraintPeAApA(xf, body, PeA, ApA, incT, LANT, ArgPT);
+bcfun = @(xf) BCkeplerian3constraintPeAApA(xf, body, PeA, ApA, incT);
+%bcfun = @(xf) BCkeplerian5constraintPeAApA(xf, body, PeA, ApA, incT, LANT, ArgPT);
 
 % launchsite latitude
 lat = deg2rad(28.608);

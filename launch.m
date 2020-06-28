@@ -24,7 +24,6 @@ function [ rf vf xf indexes r_scale v_scale t_scale ] = launch(stages, body, bcf
   upper_burntime = -1;
   while upper_burntime < 0
     phases(length(phases)).infinite = true;
-    phases(length(phases)).bt_free = true;
 
     [ rf vf xf indexes r_scale v_scale t_scale ] = primer_vector(phases, body, bcfun, r0, v0, pv0, pr0);
 
@@ -36,5 +35,8 @@ function [ rf vf xf indexes r_scale v_scale t_scale ] = launch(stages, body, bcf
   end
 
   phases(length(phases)).infinite = false;
+
+  [ rf vf xf indexes r_scale v_scale t_scale ] = primer_vector(phases, body, bcfun, r0, v0, pv0, pr0);
+
 end
 

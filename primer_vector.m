@@ -31,10 +31,13 @@ function [ rf vf xf indexes r_scale v_scale t_scale ] = primer_vector(phases, bo
 
   for p = 1:Nphases;
     if ~isfield(phases(p), 'infinte') || isempty(phases(p).infinite)
-      phases(p).infinite = false
+      phases(p).infinite = false;
     end
     if ~isfield(phases(p), 'bt_free') || isempty(phases(p).bt_free)
-      phases(p).bt_free = false
+      phases(p).bt_free = false;
+    end
+    if ~isfield(phases(p), 'unguided') || isempty(phases(p).unguided)
+      phases(p).unguided = false;
     end
     phases(p).ve     = phases(p).isp * g0;
     phases(p).a0     = phases(p).thrust / phases(p).m0;
@@ -61,11 +64,11 @@ function [ rf vf xf indexes r_scale v_scale t_scale ] = primer_vector(phases, bo
   options = optimset('Algorithm','levenberg-marquardt','TolX',1e-15,'TolFun',1e-15,'MaxFunEvals',2000,'MaxIter',300);
   lb(1:length(x0)) = -inf;
   ub(1:length(x0)) = inf;
-  [x, z, exitflag, output, jacobian] = lsqnonlin(@(x) residualFunction(x, phases, bcfun), x0, lb, ub, options);
+  [x, z, exitflag, output, jacobian] = lsqnonlin(@(x) residualFunction(x, phases, bcfun), x0, lb, ub, options)
   xf = multipleShooting(x, phases);
 
-  rf = xf(indexes.r + indexes.total) * r_scale;
-  vf = xf(indexes.v + indexes.total) * v_scale;
+  rf = xf(indexes.r + (Nphases-1) * indexes.total) * r_scale;
+  vf = xf(indexes.v + (Nphases-1) * indexes.total) * v_scale;
 end
 
 %
@@ -134,14 +137,25 @@ function z = burntimeResidual(phases, p, x0, xf)
   global Nphases indexes
   i_offset = (p-1)*indexes.total;
 
+  r0  = x0(indexes.r + i_offset);
+  v0  = x0(indexes.v + i_offset);
+  pv0 = x0(indexes.pv + i_offset);
+  pr0 = x0(indexes.pr + i_offset);
+  H0t0 = dot(pr0, v0) - dot(pv0, r0) / norm(r0)^(3/2);
+
+  rf  = xf(indexes.r + i_offset);
+  vf  = xf(indexes.v + i_offset);
+  pvf = xf(indexes.pv + i_offset);
+  prf = xf(indexes.pr + i_offset);
+  H0tf = dot(prf, vf) - dot(pvf, rf) / norm(rf)^(3/2);
+
   if phases(p).bt_free
-    if p == Nphases
-      z = norm(xf(indexes.p + i_offset)) - 1;
-    else
-      z = 1/0; % FIXME
-    end
+    % free final time constraint on the mangnitude of the total costate vector for the optimized burntime
+    % QUESTION: why does this seem to work even if we're optimizing the time of a prior stage?
+    z = norm(xf(indexes.p + i_offset)) - 1;
   else
-    z = x0(indexes.bt + i_offset)' - phases(p).bt_bar;
+    % fixed burntime
+    z = x0(indexes.bt + i_offset) - phases(p).bt_bar;
   end
 end
 
@@ -160,6 +174,7 @@ function x0 = singleShooting(x0, phases)
     x0(indexes.m + i_offset) = phases(p).m0;
     index_range = indexes.integrated + i_offset;
     ode45options = odeset('RelTol',1e-8,'AbsTol',1e-10);
+    phases(p).x0 = x0(index_range);
     [ts, xs] = ode45(@(t,x) EOM(t, x, p, phases), [0 bt], x0(index_range), ode45options);
     if p < Nphases
       x0(indexes.integrated + i_offset2) = xs(end,:);
@@ -179,6 +194,7 @@ function xf = multipleShooting(x0, phases)
     bt = x0(indexes.bt + i_offset);
     index_range = indexes.integrated + i_offset;
     ode45options = odeset('RelTol',1e-8,'AbsTol',1e-10);
+    phases(p).x0 = x0(index_range);
     [ts, xs] = ode45(@(t,x) EOM(t, x, p, phases), [0 bt], x0(index_range), ode45options);
     xf(index_range) = xs(end,:);
     xf(indexes.bt + i_offset) = bt;
@@ -196,13 +212,21 @@ function dX_dt = EOM(t, X, p, phases)
   c        = phases(p).c;
   infinite = phases(p).infinite;
 
+  % X is only the integrated state and costate from a single phase, since those values come first
+  % in any phase, followed by the time parameter, we can re-use the same indexes.
   r  = X(indexes.r);
   v  = X(indexes.v);
   pv = X(indexes.pv);
   pr = X(indexes.pr);
   m  = X(indexes.m);
 
-  u = pv/norm(pv);
+  if phases(p).unguided
+    % for inertially-fixed upper solid motors -- this constraint does not affect the costate equations, i think?
+    pv0 = phases(p).x0(indexes.pv)';
+    u = pv0 / norm(pv0);
+  else
+    u = pv/norm(pv);
+  end
   T = thrust / (m * g_bar);
 
   if infinite; T = T * 2; end
