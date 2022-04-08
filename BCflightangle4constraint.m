@@ -1,4 +1,4 @@
-% From lu 2012 "A Versatile Powered Guidance Algorithm"
+Danny Ledbetter% From lu 2012 "A Versatile Powered Guidance Algorithm"
 % radius, velocity, flight path angle, inclination (PEG style constriants)
 function z = BCflightangle4constraint(xf, rT, vT, incT, gammaT)
   global indexes r_scale v_scale
